@@ -25,6 +25,7 @@
           <button id="avatar" class="avatar" type="button" aria-label="Account menu" aria-expanded="false" aria-controls="account-menu"></button>
           <div id="account-menu" class="account-menu" hidden>
             <div class="account-details"><strong id="account-name"></strong><span id="account-email"></span></div>
+            <button id="share-list" type="button">Share list</button>
             <button id="account-settings" type="button">Account settings</button>
             <button id="clear-checks" type="button">Clear checkmarks</button>
             <button id="sign-out" class="danger" type="button">Log out</button>
@@ -37,6 +38,7 @@
       </div>
     </header>
     <main class="content">
+      <p id="list-context" hidden>Shared family list</p>
       <p id="app-status" role="status" hidden></p>
       <section id="list-panel" role="tabpanel" tabindex="0" aria-labelledby="list-tab"></section>
       <section id="others-panel" role="tabpanel" tabindex="0" aria-labelledby="others-tab" hidden>
@@ -52,7 +54,26 @@
   <dialog id="settings" aria-labelledby="settings-title">
     <div class="dialog-head"><h2 id="settings-title">Account settings</h2><form method="dialog"><button type="submit" aria-label="Close">✕</button></form></div>
     <p id="settings-email"></p>
-    <p>Your checklist is saved in this browser for your Google account.</p>
+    <p>Personal lists are saved in this browser. Shared lists sync between signed-in members.</p>
+  </dialog>
+  <dialog id="sharing" aria-labelledby="sharing-title">
+    <div class="dialog-head"><h2 id="sharing-title">Share list</h2><form method="dialog"><button type="submit" aria-label="Close sharing">✕</button></form></div>
+    <p id="sharing-status" role="status"></p>
+    <div id="personal-sharing">
+      <p>Create a shared list from your current checklist, or join one using a family member’s invitation.</p>
+      <button id="create-shared" class="primary" type="button">Create shared list</button>
+    </div>
+    <div id="active-sharing" hidden>
+      <p>Anyone with this invitation link can sign in and edit the shared list.</p>
+      <label for="share-link">Invitation link</label>
+      <input id="share-link" class="share-input" type="url" readonly>
+      <button id="copy-link" class="primary" type="button">Copy invitation link</button>
+      <button id="leave-shared" class="remove-product" type="button">Switch to personal list</button>
+    </div>
+    <form id="join-shared" class="product-form">
+      <label for="join-link">Join with an invitation link</label>
+      <div><input id="join-link" type="url" required><button class="primary" type="submit">Join</button></div>
+    </form>
   </dialog>
   <dialog id="edit-product" aria-labelledby="edit-title">
     <div class="dialog-head"><h2 id="edit-title">Edit product</h2><form method="dialog"><button type="submit" aria-label="Close">✕</button></form></div>
@@ -60,6 +81,7 @@
       <label for="edit-name">Product name</label>
       <div><input id="edit-name" required maxlength="100"><button class="primary" type="submit">Save</button></div>
     </form>
+    <p id="edit-status" role="status"></p>
     <button id="remove-product" class="remove-product danger" type="button">Remove product</button>
   </dialog>
 </body>

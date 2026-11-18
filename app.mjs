@@ -1,5 +1,6 @@
 import { catalog } from './catalog.mjs';
 import { firebaseConfig } from './firebase-config.mjs';
+import { invitationUrl, parseInvitation, sharedLists } from './sharing.mjs';
 
 const $ = id => document.getElementById(id);
 const tabs = [$('list-tab'), $('others-tab')];
@@ -10,14 +11,26 @@ const templateChecks = new Map();
 let storageKey;
 let state;
 let editingId;
+let sharing;
+let membership;
+let membershipReady = false;
+let listReady = false;
+let sharingBusy = false;
+let sharingError = '';
+let stopMembership;
+let stopList;
+
+function checklist(value) {
+  return {
+    checked: Array.isArray(value?.checked) ? value.checked.filter(id => typeof id === 'string') : [],
+    custom: Array.isArray(value?.custom) ? value.custom.filter(item =>
+      typeof item?.id === 'string' && typeof item.name === 'string') : [],
+  };
+}
 
 function loadChecklist() {
   try {
-    const saved = JSON.parse(localStorage.getItem(storageKey));
-    return {
-      checked: Array.isArray(saved?.checked) ? saved.checked : [],
-      custom: Array.isArray(saved?.custom) ? saved.custom : [],
-    };
+    return checklist(JSON.parse(localStorage.getItem(storageKey)));
   } catch {
     showStatus('The saved checklist could not be loaded.');
     return { checked: [], custom: [] };
@@ -27,18 +40,32 @@ function loadChecklist() {
 function showStatus(message = '') {
   $('app-status').textContent = message;
   $('app-status').hidden = !message;
+  if (editDialog.open) $('edit-status').textContent = message;
 }
 
-function save(next) {
+function applyChecklist(next) {
+  const customChanged = JSON.stringify(state?.custom) !== JSON.stringify(next.custom);
+  state = next;
+  if (customChanged) renderCustom();
+  else renderChecks();
+}
+
+async function save(transform) {
+  if (!storageKey || (membership && !listReady) || sharingBusy) return false;
   try {
-    localStorage.setItem(storageKey, JSON.stringify(next));
+    if (membership) {
+      await sharing.change(membership.listId, current => transform(checklist(current)));
+    } else {
+      const next = transform(loadChecklist());
+      localStorage.setItem(storageKey, JSON.stringify(next));
+      applyChecklist(next);
+    }
+    showStatus();
+    return true;
   } catch {
-    showStatus('Could not save changes in this browser.');
+    showStatus(membership ? 'Could not sync this change. Check your connection and try again.' : 'Could not save changes in this browser.');
     return false;
   }
-  state = next;
-  showStatus();
-  return true;
 }
 
 function productRow(id, name) {
@@ -48,14 +75,22 @@ function productRow(id, name) {
   const title = document.createElement('span');
   label.className = 'product';
   check.type = 'checkbox';
+  check.value = id;
   title.textContent = name;
   label.append(check, title);
   row.append(label);
-  check.addEventListener('change', () => {
-    const checked = new Set(state.checked);
-    if (check.checked) checked.add(id);
-    else checked.delete(id);
-    if (!save({ ...state, checked: [...checked] })) check.checked = !check.checked;
+  check.addEventListener('change', async () => {
+    const isChecked = check.checked;
+    check.disabled = true;
+    const saved = await save(current => {
+      if (!templateChecks.has(id) && !current.custom.some(item => item.id === id)) return current;
+      const checked = new Set(current.checked);
+      if (isChecked) checked.add(id);
+      else checked.delete(id);
+      return { ...current, checked: [...checked] };
+    });
+    check.disabled = false;
+    if (!saved) renderChecks();
   });
   return { row, check };
 }
@@ -88,7 +123,6 @@ function renderCustom() {
   $('empty-others').hidden = state.custom.length > 0;
   for (const { id, name } of state.custom) {
     const { row, check } = productRow(id, name);
-    check.value = id;
     const edit = document.createElement('button');
     edit.type = 'button';
     edit.className = 'edit-button';
@@ -97,6 +131,8 @@ function renderCustom() {
     edit.addEventListener('click', () => {
       editingId = id;
       $('edit-name').value = name;
+      $('edit-name').setCustomValidity('');
+      $('edit-status').textContent = '';
       editDialog.showModal();
     });
     row.append(edit);
@@ -138,35 +174,46 @@ function productName(input) {
   return name;
 }
 
-$('add-product').addEventListener('submit', event => {
+$('add-product').addEventListener('submit', async event => {
   event.preventDefault();
   const input = $('new-product');
   const name = productName(input);
-  if (name && save({ ...state, custom: [...state.custom, { id: crypto.randomUUID(), name }] })) {
-    input.value = '';
-    renderCustom();
-    input.focus();
-  }
+  if (!name) return;
+  const button = event.submitter;
+  const product = { id: crypto.randomUUID(), name };
+  button.disabled = true;
+  const saved = await save(current => ({ ...current, custom: [...current.custom, product] }));
+  button.disabled = false;
+  if (saved && input.value.trim() === name) input.value = '';
+  input.focus();
 });
 
-$('save-product').addEventListener('submit', event => {
+$('save-product').addEventListener('submit', async event => {
   event.preventDefault();
   const name = productName($('edit-name'));
-  if (name && save({ ...state, custom: state.custom.map(item => item.id === editingId ? { ...item, name } : item) })) {
-    editDialog.close();
-    const index = state.custom.findIndex(item => item.id === editingId);
-    renderCustom();
-    customList.children[index]?.querySelector('button').focus();
-  }
+  if (!name) return;
+  const id = editingId;
+  const button = event.submitter;
+  button.disabled = $('remove-product').disabled = true;
+  const saved = await save(current => ({
+    ...current, custom: current.custom.map(item => item.id === id ? { ...item, name } : item),
+  }));
+  button.disabled = $('remove-product').disabled = false;
+  if (saved) editDialog.close();
 });
 
-$('remove-product').addEventListener('click', () => {
-  if (save({
-    checked: state.checked.filter(id => id !== editingId),
-    custom: state.custom.filter(item => item.id !== editingId),
-  })) {
+$('remove-product').addEventListener('click', async event => {
+  const id = editingId;
+  const button = event.currentTarget;
+  const saveButton = $('save-product').querySelector('button');
+  button.disabled = saveButton.disabled = true;
+  const saved = await save(current => ({
+    checked: current.checked.filter(itemId => itemId !== id),
+    custom: current.custom.filter(item => item.id !== id),
+  }));
+  button.disabled = saveButton.disabled = false;
+  if (saved) {
     editDialog.close();
-    renderCustom();
     $('new-product').focus();
   }
 });
@@ -196,18 +243,152 @@ $('account-settings').addEventListener('click', () => {
 $('settings').addEventListener('close', () => $('avatar').focus());
 $('clear-checks').addEventListener('click', () => {
   showMenu(false);
-  if (save({ ...state, checked: [] })) renderChecks();
+  void save(current => ({ ...current, checked: [] }));
   $('avatar').focus();
 });
 
-window.addEventListener('storage', event => {
-  if (storageKey && (event.key === storageKey || event.key === null)) {
-    state = loadChecklist();
-    renderCustom();
+function renderSharing(message = sharingError) {
+  $('sharing-status').textContent = message;
+  $('list-context').hidden = !membership;
+  $('personal-sharing').hidden = !!membership;
+  $('active-sharing').hidden = !membership;
+  $('share-link').value = membership ? invitationUrl(membership, location.href) : '';
+  $('create-shared').disabled = !membershipReady || sharingBusy;
+  $('leave-shared').disabled = sharingBusy;
+  $('join-shared').querySelector('button').disabled = !membershipReady || sharingBusy;
+  $('list-panel').inert = $('others-panel').inert = sharingBusy || (!!membership && !listReady);
+  $('clear-checks').disabled = $('list-panel').inert;
+}
+
+function watchAccountSharing(sdk, db, uid) {
+  sharing = sharedLists(sdk, db, uid);
+  const accountSharing = sharing;
+  stopMembership = sharing.watchMembership(entry => {
+    if (sharing !== accountSharing) return;
+    membershipReady = true;
+    sharingError = '';
+    if (entry?.listId === membership?.listId) {
+      if (!entry) showStatus();
+      renderSharing();
+      return;
+    }
+    stopList?.();
+    membership = entry;
+    listReady = false;
+    if (editDialog.open) editDialog.close();
+    if (entry) {
+      applyChecklist(checklist());
+      showStatus('Loading shared checklist…');
+      stopList = sharing.watchList(entry.listId, data => {
+        if (sharing !== accountSharing || membership !== entry) return;
+        if (!data) {
+          showStatus('This shared checklist is unavailable.');
+          return;
+        }
+        listReady = true;
+        applyChecklist(checklist(data));
+        renderSharing();
+        showStatus();
+      }, () => {
+        if (sharing !== accountSharing || membership !== entry) return;
+        listReady = false;
+        renderSharing();
+        showStatus('Could not load the shared checklist.');
+      });
+    } else {
+      applyChecklist(loadChecklist());
+      showStatus();
+    }
+    renderSharing();
+  }, () => {
+    if (sharing !== accountSharing) return;
+    membershipReady = false;
+    sharingError = 'Sharing is unavailable. Check your connection or try again later.';
+    if (!membership) showStatus();
+    renderSharing();
+  });
+}
+
+function openSharing() {
+  showMenu(false);
+  const entry = parseInvitation(location.href);
+  $('join-link').value = entry ? location.href : '';
+  renderSharing(membershipReady ? '' : sharingError || 'Connecting to sharing…');
+  $('sharing').showModal();
+}
+
+$('share-list').addEventListener('click', openSharing);
+window.addEventListener('hashchange', () => {
+  if (storageKey && parseInvitation(location.href) && !$('sharing').open) openSharing();
+});
+$('sharing').addEventListener('close', () => $('avatar').focus());
+
+async function changeMembership(operation, failure) {
+  if (!sharing || sharingBusy) return;
+  const accountSharing = sharing;
+  sharingBusy = true;
+  renderSharing('Saving…');
+  let message = '';
+  try {
+    await operation();
+    if (sharing === accountSharing && parseInvitation(location.href)) {
+      const url = new URL(location.href);
+      url.hash = '';
+      history.replaceState(null, '', url);
+    }
+  } catch {
+    message = failure;
+  } finally {
+    if (sharing === accountSharing) {
+      sharingBusy = false;
+      renderSharing(message);
+    }
+  }
+}
+
+$('create-shared').addEventListener('click', () => {
+  void changeMembership(() => sharing.create(state), 'Could not create a shared list. Try again when connected.');
+});
+$('leave-shared').addEventListener('click', () => {
+  void changeMembership(() => sharing.leave(), 'Could not switch to your personal list.');
+});
+$('join-shared').addEventListener('submit', event => {
+  event.preventDefault();
+  const entry = parseInvitation($('join-link').value.trim());
+  if (!entry) {
+    renderSharing('Enter a valid invitation link.');
+    return;
+  }
+  void changeMembership(async () => {
+    await sharing.join(entry);
+    $('join-link').value = '';
+  }, 'Could not join. Check the invitation link and your connection.');
+});
+$('copy-link').addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText($('share-link').value);
+    renderSharing('Invitation link copied.');
+  } catch {
+    $('share-link').select();
+    renderSharing('Select and copy the invitation link.');
   }
 });
 
-function showAccount(user) {
+window.addEventListener('storage', event => {
+  if (storageKey && !membership && (event.key === storageKey || event.key === null)) {
+    applyChecklist(loadChecklist());
+  }
+});
+
+function showAccount(user, sdk, db) {
+  stopMembership?.();
+  stopList?.();
+  sharing = membership = null;
+  membershipReady = listReady = sharingBusy = false;
+  sharingError = db ? '' : 'Sharing is unavailable. Check your connection or try again later.';
+  renderSharing();
+  if (editDialog.open) editDialog.close();
+  if ($('sharing').open) $('sharing').close();
   $('login').hidden = !!user;
   $('app').hidden = !user;
   $('sign-in').disabled = false;
@@ -216,7 +397,6 @@ function showAccount(user) {
     storageKey = null;
     state = null;
     customList.replaceChildren();
-    if (editDialog.open) editDialog.close();
     if ($('settings').open) $('settings').close();
     return;
   }
@@ -244,6 +424,8 @@ function showAccount(user) {
   $('edit-name').setCustomValidity('');
   selectTab(tabs[0]);
   renderCustom();
+  if (db) watchAccountSharing(sdk, db, user.uid);
+  if (parseInvitation(location.href)) openSharing();
 }
 
 async function startAuth() {
@@ -251,11 +433,18 @@ async function startAuth() {
     import('https://www.gstatic.com/firebasejs/13.2.0/firebase-app.js'),
     import('https://www.gstatic.com/firebasejs/13.2.0/firebase-auth.js'),
   ]);
-  const auth = authSdk.initializeAuth(appSdk.initializeApp(firebaseConfig, 'shopping-list'), {
+  const app = appSdk.initializeApp(firebaseConfig, 'shopping-list');
+  const auth = authSdk.initializeAuth(app, {
     persistence: authSdk.browserLocalPersistence,
     popupRedirectResolver: authSdk.browserPopupRedirectResolver,
   });
-  authSdk.onAuthStateChanged(auth, showAccount);
+  const firestore = import('https://www.gstatic.com/firebasejs/13.2.0/firebase-firestore.js')
+    .then(sdk => ({ sdk, db: sdk.getFirestore(app) }))
+    .catch(() => ({}));
+  authSdk.onAuthStateChanged(auth, async user => {
+    const { sdk, db } = user ? await firestore : {};
+    if (auth.currentUser?.uid === user?.uid) showAccount(user, sdk, db);
+  });
   $('sign-in').addEventListener('click', async () => {
     $('sign-in').disabled = true;
     $('login-status').textContent = 'Opening Google sign-in…';

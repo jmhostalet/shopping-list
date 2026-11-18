@@ -65,3 +65,12 @@ header { padding: 18px 16px 0; }
 dialog { width: min(calc(100% - 32px), 420px); padding: 16px; border: 0; border-radius: 18px; color: var(--ink); box-shadow: var(--shadow); }
 dialog::backdrop { background: #20232e60; }
 dialog .product-form { padding: 10px 0; box-shadow: none; }
+
+#sharing p { font-size: .875rem; color: var(--muted); }
+#sharing-status:empty { display: none; }
+#active-sharing label { display: block; font-size: .875rem; font-weight: 700; }
+.share-input { width: 100%; min-width: 0; margin: 8px 0; padding: 9px 12px; border: 1px solid #c8cbd8; border-radius: 10px; }
+#join-shared { margin-top: 14px; border-top: 1px solid var(--border); border-radius: 0; }
+
+#list-context { margin: 0 0 12px; color: var(--green); font-size: .875rem; font-weight: 700; }
+#edit-status:empty { display: none; }

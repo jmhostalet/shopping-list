@@ -1,0 +1,49 @@
+    // Insert inside match /databases/{database}/documents.
+    function shoppingSignedIn() {
+      return request.auth != null;
+    }
+
+    function shoppingMembershipPath(uid) {
+      return /databases/$(database)/documents/shoppingMemberships/$(uid);
+    }
+
+    function shoppingListPath(listId) {
+      return /databases/$(database)/documents/shoppingLists/$(listId);
+    }
+
+    function shoppingToken(value) {
+      return value is string && value.matches('^[a-f0-9]{32}$');
+    }
+
+    function shoppingMember(listId) {
+      return shoppingSignedIn()
+        && get(shoppingMembershipPath(request.auth.uid)).data.listId == listId;
+    }
+
+    function shoppingChecklist(data) {
+      return data.checked is list && data.checked.size() <= 600
+        && data.custom is list && data.custom.size() <= 500;
+    }
+
+    match /shoppingMemberships/{uid} {
+      allow get, delete: if shoppingSignedIn() && request.auth.uid == uid;
+      allow create, update: if shoppingSignedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['listId', 'invite'])
+        && shoppingToken(request.resource.data.listId)
+        && shoppingToken(request.resource.data.invite)
+        && getAfter(shoppingListPath(request.resource.data.listId)).data.invite
+          == request.resource.data.invite;
+    }
+
+    match /shoppingLists/{listId} {
+      allow get: if shoppingMember(listId);
+      allow create: if shoppingSignedIn() && shoppingToken(listId)
+        && request.resource.data.keys().hasOnly(['owner', 'invite', 'checked', 'custom'])
+        && request.resource.data.owner == request.auth.uid
+        && shoppingToken(request.resource.data.invite)
+        && shoppingChecklist(request.resource.data)
+        && getAfter(shoppingMembershipPath(request.auth.uid)).data.listId == listId;
+      allow update: if shoppingMember(listId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checked', 'custom'])
+        && shoppingChecklist(request.resource.data);
+    }
