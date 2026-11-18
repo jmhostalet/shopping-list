@@ -27,10 +27,11 @@ jobs:
         run: |
           node --check app.mjs
           node --check sharing.mjs
+          node --check quantities.mjs
           node --check catalog.mjs
           node --check firebase-config.mjs
           mkdir _site
-          cp index.html favicon.svg styles.css app.mjs catalog.mjs firebase-config.mjs sharing.mjs _site/
+          cp index.html favicon.svg styles.css app.mjs catalog.mjs firebase-config.mjs sharing.mjs quantities.mjs _site/
       - uses: actions/upload-pages-artifact@v4
         with:
           path: _site

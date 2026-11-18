@@ -2,12 +2,15 @@ import { catalog } from './catalog.mjs';
 import { firebaseConfig } from './firebase-config.mjs';
 import { invitationUrl, parseInvitation, sharedLists } from './sharing.mjs';
 
+import { changeQuantity, readQuantities } from './quantities.mjs';
+
 const $ = id => document.getElementById(id);
 const tabs = [$('list-tab'), $('others-tab')];
 const customList = $('custom-products');
 const menu = $('account-menu');
 const editDialog = $('edit-product');
-const templateChecks = new Map();
+const templateProducts = new Map();
+const quantityUpdates = new Map();
 let storageKey;
 let state;
 let editingId;
@@ -47,7 +50,7 @@ function applyChecklist(next) {
   const customChanged = JSON.stringify(state?.custom) !== JSON.stringify(next.custom);
   state = next;
   if (customChanged) renderCustom();
-  else renderChecks();
+  else renderQuantities();
 }
 
 async function save(transform) {
@@ -68,31 +71,67 @@ async function save(transform) {
   }
 }
 
+function adjustQuantity(id, delta) {
+  const transform = current => {
+    if (!templateProducts.has(id) && !current.custom.some(item => item.id === id)) return current;
+    return { ...current, checked: changeQuantity(current.checked, id, delta) };
+  };
+  if (!membership) return save(transform);
+
+  const activeMembership = membership;
+  const previous = quantityUpdates.get(id) || Promise.resolve();
+  const pending = previous.then(() => {
+    if (membership === activeMembership) return save(transform);
+  });
+  quantityUpdates.set(id, pending);
+  return pending.finally(() => {
+    if (quantityUpdates.get(id) === pending) quantityUpdates.delete(id);
+  });
+}
+
 function productRow(id, name) {
   const row = document.createElement('li');
-  const label = document.createElement('label');
-  const check = document.createElement('input');
+  const product = document.createElement('button');
+  const count = document.createElement('span');
   const title = document.createElement('span');
-  label.className = 'product';
-  check.type = 'checkbox';
-  check.value = id;
+  const decrease = document.createElement('button');
+  row.dataset.productId = id;
+  product.className = 'product';
+  product.type = decrease.type = 'button';
+  count.className = 'quantity';
+  title.className = 'product-name';
   title.textContent = name;
-  label.append(check, title);
-  row.append(label);
-  check.addEventListener('change', async () => {
-    const isChecked = check.checked;
-    check.disabled = true;
-    const saved = await save(current => {
-      if (!templateChecks.has(id) && !current.custom.some(item => item.id === id)) return current;
-      const checked = new Set(current.checked);
-      if (isChecked) checked.add(id);
-      else checked.delete(id);
-      return { ...current, checked: [...checked] };
-    });
-    check.disabled = false;
-    if (!saved) renderChecks();
+  decrease.className = 'decrease-button';
+  decrease.textContent = '−';
+  decrease.setAttribute('aria-label', 'Decrease quantity of ' + name);
+  product.append(count, title);
+  row.append(product, decrease);
+
+  let start;
+  let swiped = false;
+  product.addEventListener('pointerdown', event => {
+    if (!event.isPrimary || event.button !== 0) return;
+    start = { id: event.pointerId, x: event.clientX, y: event.clientY };
+    swiped = false;
+    product.setPointerCapture(event.pointerId);
   });
-  return { row, check };
+  product.addEventListener('pointercancel', () => { start = null; });
+  product.addEventListener('pointerup', event => {
+    if (event.pointerId !== start?.id) return;
+    const dx = event.clientX - start.x;
+    const dy = event.clientY - start.y;
+    start = null;
+    swiped = Math.max(Math.abs(dx), Math.abs(dy)) >= 36;
+    if (Math.abs(dx) >= 36 && Math.abs(dx) >= Math.abs(dy) * 1.4) {
+      void adjustQuantity(id, Math.sign(dx));
+    }
+  });
+  product.addEventListener('click', event => {
+    if (swiped && event.detail) return;
+    void adjustQuantity(id, 1);
+  });
+  decrease.addEventListener('click', () => void adjustQuantity(id, -1));
+  return row;
 }
 
 for (const [category, products] of catalog) {
@@ -104,25 +143,31 @@ for (const [category, products] of catalog) {
   list.className = 'products';
   for (const name of products) {
     const id = category + ':' + name;
-    const { row, check } = productRow(id, name);
-    templateChecks.set(id, check);
+    const row = productRow(id, name);
+    templateProducts.set(id, row);
     list.append(row);
   }
   section.append(heading, list);
   $('list-panel').append(section);
 }
 
-function renderChecks() {
-  const checked = new Set(state.checked);
-  for (const [id, check] of templateChecks) check.checked = checked.has(id);
-  for (const check of customList.querySelectorAll('input')) check.checked = checked.has(check.value);
+function renderQuantities() {
+  const quantities = readQuantities(state.checked);
+  for (const row of [...templateProducts.values(), ...customList.children]) {
+    const quantity = quantities.get(row.dataset.productId) || 0;
+    const product = row.querySelector('.product');
+    row.classList.toggle('selected', quantity > 0);
+    row.querySelector('.quantity').textContent = quantity;
+    row.querySelector('.decrease-button').disabled = quantity === 0;
+    product.setAttribute('aria-label', row.querySelector('.product-name').textContent + ', quantity ' + quantity + '. Increase quantity');
+  }
 }
 
 function renderCustom() {
   customList.replaceChildren();
   $('empty-others').hidden = state.custom.length > 0;
   for (const { id, name } of state.custom) {
-    const { row, check } = productRow(id, name);
+    const row = productRow(id, name);
     const edit = document.createElement('button');
     edit.type = 'button';
     edit.className = 'edit-button';
@@ -138,7 +183,7 @@ function renderCustom() {
     row.append(edit);
     customList.append(row);
   }
-  renderChecks();
+  renderQuantities();
 }
 
 function selectTab(tab) {
@@ -208,7 +253,7 @@ $('remove-product').addEventListener('click', async event => {
   const saveButton = $('save-product').querySelector('button');
   button.disabled = saveButton.disabled = true;
   const saved = await save(current => ({
-    checked: current.checked.filter(itemId => itemId !== id),
+    checked: changeQuantity(current.checked, id, -999),
     custom: current.custom.filter(item => item.id !== id),
   }));
   button.disabled = saveButton.disabled = false;
@@ -241,7 +286,7 @@ $('account-settings').addEventListener('click', () => {
   $('settings').showModal();
 });
 $('settings').addEventListener('close', () => $('avatar').focus());
-$('clear-checks').addEventListener('click', () => {
+$('clear-quantities').addEventListener('click', () => {
   showMenu(false);
   void save(current => ({ ...current, checked: [] }));
   $('avatar').focus();
@@ -257,7 +302,7 @@ function renderSharing(message = sharingError) {
   $('leave-shared').disabled = sharingBusy;
   $('join-shared').querySelector('button').disabled = !membershipReady || sharingBusy;
   $('list-panel').inert = $('others-panel').inert = sharingBusy || (!!membership && !listReady);
-  $('clear-checks').disabled = $('list-panel').inert;
+  $('clear-quantities').disabled = $('list-panel').inert;
 }
 
 function watchAccountSharing(sdk, db, uid) {
@@ -274,6 +319,7 @@ function watchAccountSharing(sdk, db, uid) {
     }
     stopList?.();
     membership = entry;
+    quantityUpdates.clear();
     listReady = false;
     if (editDialog.open) editDialog.close();
     if (entry) {
@@ -384,6 +430,7 @@ function showAccount(user, sdk, db) {
   stopMembership?.();
   stopList?.();
   sharing = membership = null;
+  quantityUpdates.clear();
   membershipReady = listReady = sharingBusy = false;
   sharingError = db ? '' : 'Sharing is unavailable. Check your connection or try again later.';
   renderSharing();

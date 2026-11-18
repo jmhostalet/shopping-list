@@ -28,7 +28,7 @@
             <div class="account-details"><strong id="account-name"></strong><span id="account-email"></span></div>
             <button id="share-list" type="button">Share list</button>
             <button id="account-settings" type="button">Account settings</button>
-            <button id="clear-checks" type="button">Clear checkmarks</button>
+            <button id="clear-quantities" type="button">Clear quantities</button>
             <button id="sign-out" class="danger" type="button">Log out</button>
           </div>
         </div>
@@ -41,6 +41,7 @@
     <main class="content">
       <p id="list-context" hidden>Shared family list</p>
       <p id="app-status" role="status" hidden></p>
+      <p class="quantity-hint">Swipe right to add one, left to subtract one.</p>
       <section id="list-panel" role="tabpanel" tabindex="0" aria-labelledby="list-tab"></section>
       <section id="others-panel" role="tabpanel" tabindex="0" aria-labelledby="others-tab" hidden>
         <form id="add-product" class="product-form">
