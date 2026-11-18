@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f5fa">
+  <title>Shopping List</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="app.mjs"></script>
+</head>
+<body>
+  <main id="login" class="login">
+    <div class="login-card">
+      <span class="logo" aria-hidden="true">✓</span>
+      <h1>Shopping List</h1>
+      <button id="sign-in" class="primary" type="button" disabled>Sign in with Google</button>
+      <p id="login-status" role="status">Checking your sign-in…</p>
+    </div>
+  </main>
+  <div id="app" class="app" hidden>
+    <header>
+      <div class="brand">
+        <div class="brand-title"><span class="logo" aria-hidden="true">✓</span><h1>Shopping List</h1></div>
+        <div id="account" class="account">
+          <button id="avatar" class="avatar" type="button" aria-label="Account menu" aria-expanded="false" aria-controls="account-menu"></button>
+          <div id="account-menu" class="account-menu" hidden>
+            <div class="account-details"><strong id="account-name"></strong><span id="account-email"></span></div>
+            <button id="account-settings" type="button">Account settings</button>
+            <button id="clear-checks" type="button">Clear checkmarks</button>
+            <button id="sign-out" class="danger" type="button">Log out</button>
+          </div>
+        </div>
+      </div>
+      <div class="tabs" aria-label="Shopping list sections" role="tablist">
+        <button id="list-tab" type="button" role="tab" aria-selected="true" aria-controls="list-panel">List</button>
+        <button id="others-tab" type="button" role="tab" tabindex="-1" aria-selected="false" aria-controls="others-panel">Others</button>
+      </div>
+    </header>
+    <main class="content">
+      <p id="app-status" role="status" hidden></p>
+      <section id="list-panel" role="tabpanel" tabindex="0" aria-labelledby="list-tab"></section>
+      <section id="others-panel" role="tabpanel" tabindex="0" aria-labelledby="others-tab" hidden>
+        <form id="add-product" class="product-form">
+          <label for="new-product">Custom product</label>
+          <div><input id="new-product" name="product" placeholder="Product name" required maxlength="100"><button class="primary" type="submit">Add</button></div>
+        </form>
+        <p id="empty-others">Your custom products will appear here.</p>
+        <ul id="custom-products" class="products"></ul>
+      </section>
+    </main>
+  </div>
+  <dialog id="settings" aria-labelledby="settings-title">
+    <div class="dialog-head"><h2 id="settings-title">Account settings</h2><form method="dialog"><button type="submit" aria-label="Close">✕</button></form></div>
+    <p id="settings-email"></p>
+    <p>Your checklist is saved in this browser for your Google account.</p>
+  </dialog>
+  <dialog id="edit-product" aria-labelledby="edit-title">
+    <div class="dialog-head"><h2 id="edit-title">Edit product</h2><form method="dialog"><button type="submit" aria-label="Close">✕</button></form></div>
+    <form id="save-product" class="product-form">
+      <label for="edit-name">Product name</label>
+      <div><input id="edit-name" required maxlength="100"><button class="primary" type="submit">Save</button></div>
+    </form>
+    <button id="remove-product" class="remove-product danger" type="button">Remove product</button>
+  </dialog>
+</body>
+</html>
