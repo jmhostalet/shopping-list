@@ -55,7 +55,7 @@ header { padding: 18px 16px 0; }
 .product-name { overflow-wrap: anywhere; padding: 8px 0; }
 .quantity { display: grid; place-items: center; flex: none; min-width: 30px; min-height: 28px; padding: 0 4px; border-radius: 8px; background: var(--background); color: var(--muted); font-size: .8125rem; font-variant-numeric: tabular-nums; }
 .selected .product { font-weight: 700; }
-.selected .quantity { background: var(--pale-green); color: var(--green); }
+.selected .quantity { background: var(--pale-green); color: #064e3b; }
 .decrease-button { flex: none; min-width: 44px; min-height: 44px; border: 0; background: transparent; color: var(--green); font-size: 1.25rem; }
 .quantity-hint { margin: 0 0 12px; font-size: .8125rem; color: var(--muted); }
 .product-form { padding: 14px; }
