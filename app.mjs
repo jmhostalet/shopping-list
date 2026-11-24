@@ -98,17 +98,21 @@ function productRow(id, name) {
   const count = document.createElement('span');
   const title = document.createElement('span');
   const decrease = document.createElement('button');
+  const increase = document.createElement('button');
   row.dataset.productId = id;
   product.className = 'product';
-  product.type = decrease.type = 'button';
+  product.type = decrease.type = increase.type = 'button';
   count.className = 'quantity';
   title.className = 'product-name';
   title.textContent = name;
-  decrease.className = 'decrease-button';
+  decrease.className = 'quantity-button decrease-button';
+  increase.className = 'quantity-button';
   decrease.textContent = '−';
+  increase.textContent = '+';
   decrease.setAttribute('aria-label', 'Decrease quantity of ' + name);
+  increase.setAttribute('aria-label', 'Increase quantity of ' + name);
   product.append(count, title);
-  row.append(product, decrease);
+  row.append(product, decrease, increase);
 
   let start;
   let swiped = false;
@@ -134,6 +138,7 @@ function productRow(id, name) {
     void adjustQuantity(id, 1);
   });
   decrease.addEventListener('click', () => void adjustQuantity(id, -1));
+  increase.addEventListener('click', () => void adjustQuantity(id, 1));
   return row;
 }
 
