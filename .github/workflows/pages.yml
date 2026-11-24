@@ -6,7 +6,6 @@ on:
   workflow_dispatch:
 
 permissions:
-  actions: read
   contents: read
   pages: write
   id-token: write
@@ -16,11 +15,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/configure-pages@v5
@@ -33,20 +29,15 @@ jobs:
           node --check firebase-config.mjs
           mkdir _site
           cp index.html favicon.svg styles.css app.mjs catalog.mjs firebase-config.mjs sharing.mjs quantities.mjs _site/
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: _site
-      - name: Wait for the Pages artifact
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          for attempt in {1..8}; do
-            if count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=github-pages" --jq .total_count) && [[ "$count" -gt 0 ]]; then
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "The Pages artifact did not become available."
-          exit 1
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
