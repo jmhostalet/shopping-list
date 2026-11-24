@@ -11,6 +11,9 @@ const menu = $('account-menu');
 const editDialog = $('edit-product');
 const templateProducts = new Map();
 const quantityUpdates = new Map();
+const listPanel = $('list-panel');
+const filter = $('hide-zero');
+let hideZero = false;
 let storageKey;
 let state;
 let editingId;
@@ -148,7 +151,7 @@ for (const [category, products] of catalog) {
     list.append(row);
   }
   section.append(heading, list);
-  $('list-panel').append(section);
+  listPanel.append(section);
 }
 
 function renderQuantities() {
@@ -157,15 +160,30 @@ function renderQuantities() {
     const quantity = quantities.get(row.dataset.productId) || 0;
     const product = row.querySelector('.product');
     row.classList.toggle('selected', quantity > 0);
+    row.hidden = hideZero && quantity === 0;
     row.querySelector('.quantity').textContent = quantity;
     row.querySelector('.decrease-button').disabled = quantity === 0;
     product.setAttribute('aria-label', row.querySelector('.product-name').textContent + ', quantity ' + quantity + '. Increase quantity');
   }
+  const categories = listPanel.querySelectorAll('.category');
+  for (const category of categories) category.hidden = !category.querySelector('li:not([hidden])');
+  $('empty-list').hidden = Array.from(categories).some(category => !category.hidden);
+  const hasCustom = !!customList.querySelector('li:not([hidden])');
+  customList.hidden = !hasCustom;
+  $('empty-others').hidden = hasCustom;
+  $('empty-others').textContent = hideZero && state.custom.length
+    ? 'No custom products with a quantity above zero.'
+    : 'Your custom products will appear here.';
 }
+
+filter.addEventListener('click', () => {
+  hideZero = !hideZero;
+  filter.setAttribute('aria-pressed', hideZero);
+  renderQuantities();
+});
 
 function renderCustom() {
   customList.replaceChildren();
-  $('empty-others').hidden = state.custom.length > 0;
   for (const { id, name } of state.custom) {
     const row = productRow(id, name);
     const edit = document.createElement('button');
@@ -436,6 +454,8 @@ function showAccount(user, sdk, db) {
   renderSharing();
   if (editDialog.open) editDialog.close();
   if ($('sharing').open) $('sharing').close();
+  hideZero = false;
+  filter.setAttribute('aria-pressed', 'false');
   $('login').hidden = !!user;
   $('app').hidden = !user;
   $('sign-in').disabled = false;

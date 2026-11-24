@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#f4f5fa">
   <title>Shopping List</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="styles.css?v=dark-quantity">
+  <link rel="stylesheet" href="styles.css?v=quantity-filter">
   <script type="module" src="app.mjs"></script>
 </head>
 <body>
@@ -33,16 +33,21 @@
           </div>
         </div>
       </div>
-      <div class="tabs" aria-label="Shopping list sections" role="tablist">
-        <button id="list-tab" type="button" role="tab" aria-selected="true" aria-controls="list-panel">List</button>
-        <button id="others-tab" type="button" role="tab" tabindex="-1" aria-selected="false" aria-controls="others-panel">Others</button>
+      <div class="list-toolbar">
+        <div class="tabs" aria-label="Shopping list sections" role="tablist">
+          <button id="list-tab" type="button" role="tab" aria-selected="true" aria-controls="list-panel">List</button>
+          <button id="others-tab" type="button" role="tab" tabindex="-1" aria-selected="false" aria-controls="others-panel">Others</button>
+        </div>
+        <button id="hide-zero" class="quantity-filter" type="button" aria-label="Hide items with zero quantity" aria-pressed="false" title="Hide or show items with zero quantity">
+          <svg aria-hidden="true" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18l-7 8v5l-4 2v-7z"/></svg>
+        </button>
       </div>
     </header>
     <main class="content">
       <p id="list-context" hidden>Shared family list</p>
       <p id="app-status" role="status" hidden></p>
       <p class="quantity-hint">Swipe right to add one, left to subtract one.</p>
-      <section id="list-panel" role="tabpanel" tabindex="0" aria-labelledby="list-tab"></section>
+      <section id="list-panel" role="tabpanel" tabindex="0" aria-labelledby="list-tab"><p id="empty-list" hidden>No items with a quantity above zero.</p></section>
       <section id="others-panel" role="tabpanel" tabindex="0" aria-labelledby="others-tab" hidden>
         <form id="add-product" class="product-form">
           <label for="new-product">Custom product</label>

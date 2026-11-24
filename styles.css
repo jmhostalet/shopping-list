@@ -24,7 +24,7 @@ h2 { font-size: 1rem; }
 .login-card { width: min(100%, 320px); text-align: center; }
 .login-card .logo { width: 64px; height: 64px; margin: 0 auto 18px; font-size: 32px; }
 .login-card .primary { width: 100%; margin-top: 22px; }
-#login-status, #app-status, #empty-others { font-size: .875rem; color: var(--muted); }
+#login-status, #app-status, #empty-others, #empty-list { font-size: .875rem; color: var(--muted); }
 .app { width: min(100%, 640px); margin: 0 auto; }
 header { padding: 18px 16px 0; }
 .brand, .brand-title, .dialog-head { display: flex; align-items: center; gap: 10px; }
@@ -41,7 +41,10 @@ header { padding: 18px 16px 0; }
 .account-menu button, .remove-product { width: 100%; text-align: left; border: 0; background: transparent; color: var(--ink); padding: 12px 10px; border-radius: 9px; min-height: 44px; }
 .account-menu button:hover, .remove-product:hover { background: var(--background); }
 .danger { color: #a82543 !important; }
-.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 18px; padding: 4px; background: #e7e9f2; border-radius: 15px; }
+.list-toolbar { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
+.quantity-filter { display: grid; place-items: center; width: 48px; height: 48px; flex: none; border: 0; border-radius: 13px; background: #e7e9f2; color: var(--ink); }
+.quantity-filter[aria-pressed="true"] { background: #064e3b; color: white; }
+.tabs { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 4px; background: #e7e9f2; border-radius: 15px; }
 .tabs button { min-height: 44px; border: 0; border-radius: 11px; background: transparent; color: var(--muted); font-weight: 700; }
 .tabs [aria-selected="true"] { background: white; color: var(--ink); box-shadow: var(--shadow); }
 .content { padding: 14px 16px max(24px, env(safe-area-inset-bottom)); }
